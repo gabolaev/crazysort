@@ -85,7 +85,7 @@ func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
 			buffer = append(buffer, appendix...)
 
 			log.Infof(
-				"%d bytes readed at sub-part #%d (part #%d)",
+				"%d bytes read at sub-part #%d (part #%d)",
 				n*(subPart+1),
 				subPart,
 				partID,
@@ -163,7 +163,7 @@ func (crs *CrazySorter) MergeParts() error {
 			return err
 		}
 		log.Infof(
-			"%d bytes readed from part #%d",
+			"%d bytes read from part #%d",
 			n,
 			idx,
 		)
