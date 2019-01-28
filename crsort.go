@@ -7,10 +7,11 @@ import (
 	datastructures "crazysort/data-structures"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"os"
 	"strconv"
+
+	log "github.com/kataras/golog"
 )
 
 var (
@@ -51,11 +52,11 @@ func (crs *CrazySorter) PartsCounter() (int, int, error) {
 	fstat, _ := file.Stat()
 
 	fileSize, _ := strconv.Atoi(strconv.FormatInt(fstat.Size(), 10))
-	log.Printf("File size: %d bytes", fileSize)
-	log.Printf("RAM size: %.0f bytes", crs.RAMSize)
+	log.Infof("File size: %d bytes", fileSize)
+	log.Infof("RAM size: %.0f bytes", crs.RAMSize)
 
 	partsCount := int(math.Ceil(float64(fileSize) / crs.RAMSize))
-	log.Printf("Parts count: %d", partsCount)
+	log.Infof("Parts count: %d", partsCount)
 	return partsCount, int(math.Ceil(float64(fileSize / partsCount))), nil
 }
 
@@ -74,16 +75,16 @@ func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
 			buffer := make([]byte, partSize/SubPartsCount)
 			n, err := io.ReadFull(reader, buffer)
 			if err != nil {
-				log.Println(err)
+				log.Warn(err)
 			}
 
 			appendix, _, err := reader.ReadLine()
 			if err != nil {
-				log.Println(err)
+				log.Warn(err)
 			}
 			buffer = append(buffer, appendix...)
 
-			log.Printf(
+			log.Infof(
 				"%d bytes readed at sub-part #%d (part #%d)",
 				n*(subPart+1),
 				subPart,
@@ -95,14 +96,14 @@ func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
 				partData = append(partData, value)
 			}
 		}
-		log.Printf("Sorting part #%d : %v ...", partID, partData[0:10])
+		log.Infof("Sorting part #%d : %v ...", partID, partData[0:10])
 		partData = crs.SortAlgo.Sort(partData, func(a, b int) bool {
 			return a < b
 		})
-		log.Printf("Sorted: %v ...", partData[0:30])
+		log.Infof("Sorted: %v ...", partData[0:30])
 
 		partFileName := fmt.Sprintf("%s_%d", crs.FilePath, partID)
-		log.Printf("Creating part_file: %s", partFileName)
+		log.Infof("Creating part_file: %s", partFileName)
 
 		partFile, err := os.Create(partFileName)
 		defer partFile.Close()
@@ -112,7 +113,7 @@ func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
 
 		writer := bufio.NewWriter(partFile)
 
-		log.Printf("Writing %d lines", len(partData))
+		log.Infof("Writing %d lines", len(partData))
 		for _, value := range partData {
 			_, err := io.WriteString(writer, strconv.Itoa(value)+"\n")
 			if err != nil {
@@ -154,14 +155,14 @@ func (crs *CrazySorter) MergeParts() error {
 	}
 
 	subPartSize := int(crs.RAMSize) / len(crs.Parts) / SubPartsCount
-	log.Printf("Reading %d bytes per each part", subPartSize)
+	log.Infof("Reading %d bytes per each part", subPartSize)
 	for idx, partReader := range partsReaders {
 		buffer := make([]byte, subPartSize)
 		n, err := partReader.Read(buffer)
 		if err != nil {
 			return err
 		}
-		log.Printf(
+		log.Infof(
 			"%d bytes readed from part #%d",
 			n,
 			idx,

@@ -1,3 +1,4 @@
 big_fucking_file.txt*
 crazysort
 .DS_Store
+vendor/
