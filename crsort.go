@@ -72,22 +72,29 @@ func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
 		partData := make([]int, 0, partSize)
 		for subPart := 0; subPart < SubPartsCount; subPart++ {
 			buffer := make([]byte, partSize/SubPartsCount)
-			n, err := reader.Read(buffer)
-			if err != nil && err != io.EOF {
-				return err
+			n, err := io.ReadFull(reader, buffer)
+			if err != nil {
+				log.Println(err)
 			}
+
+			appendix, _, err := reader.ReadLine()
+			if err != nil {
+				log.Println(err)
+			}
+			buffer = append(buffer, appendix...)
+
 			log.Printf(
 				"%d bytes readed at sub-part #%d (part #%d)",
-				n,
+				n*(subPart+1),
 				subPart,
 				partID,
 			)
+
 			for _, elem := range bytes.Split(buffer, NewLineDelim) {
 				value, _ := strconv.Atoi(string(elem))
 				partData = append(partData, value)
 			}
 		}
-		fmt.Println(partData[len(partData)-1])
 		log.Printf("Sorting part #%d : %v ...", partID, partData[0:10])
 		partData = crs.SortAlgo.Sort(partData, func(a, b int) bool {
 			return a < b
@@ -104,23 +111,15 @@ func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
 		}
 
 		writer := bufio.NewWriter(partFile)
-		defer writer.Flush()
 
 		log.Printf("Writing %d lines", len(partData))
-		count := 0
 		for _, value := range partData {
-			n, err := writer.WriteString(fmt.Sprintf(
-				"%d\n", value,
-			))
-			if n <= 2 {
-				log.Println(n)
-			}
+			_, err := io.WriteString(writer, strconv.Itoa(value)+"\n")
 			if err != nil {
 				log.Println(err)
 			}
-			count++
 		}
-		log.Printf("Writed %d lines", count)
+		writer.Flush()
 		partFile.Close()
 		crs.Parts = append(crs.Parts, partFileName)
 	}
