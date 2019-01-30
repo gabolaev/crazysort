@@ -7,15 +7,15 @@ import (
 
 // SexyHeap ...
 type SexyHeap struct {
-	Data    []int
+	Data    []*Pair
 	Size    int
-	Compare func(int, int) bool
+	Compare func(*Pair, *Pair) bool
 }
 
 // NewSexyHeap ...
-func NewSexyHeap(Compare func(int, int) bool) SexyHeap {
+func NewSexyHeap(Compare func(*Pair, *Pair) bool) SexyHeap {
 	return SexyHeap{
-		Data:    make([]int, 0),
+		Data:    make([]*Pair, 0),
 		Size:    0,
 		Compare: Compare,
 	}
@@ -53,7 +53,7 @@ func (h *SexyHeap) buildHeap(idx int) {
 }
 
 // Insert ...
-func (h *SexyHeap) Insert(elem ...int) {
+func (h *SexyHeap) Insert(elem ...(*Pair)) {
 	h.Data = append(h.Data, elem...)
 	newElementsCount := len(elem)
 	h.Size += newElementsCount
@@ -66,9 +66,9 @@ func (h *SexyHeap) Insert(elem ...int) {
 }
 
 // Extract ...
-func (h *SexyHeap) Extract(idx int) (int, error) {
+func (h *SexyHeap) Extract(idx int) (*Pair, error) {
 	if idx >= h.Size || idx < 0 {
-		return 0, fmt.Errorf("Invalid idx: %d", idx)
+		return nil, fmt.Errorf("Invalid idx: %d", idx)
 	}
 
 	returnValue := h.Data[idx]
@@ -83,7 +83,7 @@ func (h *SexyHeap) Extract(idx int) (int, error) {
 }
 
 // GetHead ...
-func (h *SexyHeap) GetHead() (int, error) {
+func (h *SexyHeap) GetHead() (*Pair, error) {
 	return h.Extract(0)
 }
 
@@ -92,7 +92,7 @@ func (h *SexyHeap) String() string {
 	binCount := 1
 	binCountHistory := make(map[int]bool)
 	for _, elem := range h.Data {
-		result += strconv.Itoa(elem)
+		result += strconv.Itoa(elem.Value)
 		if binCount&(binCount-1) == 0 && !binCountHistory[binCount] {
 			binCountHistory[binCount] = true
 			binCount = 1

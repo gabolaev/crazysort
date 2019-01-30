@@ -1,10 +1,11 @@
-package main
+package src
 
 import (
 	"bufio"
 	"bytes"
 	"crazysort/algorithms"
-	datastructures "crazysort/data-structures"
+	ds "crazysort/data-structures"
+	utils "crazysort/utils"
 	"fmt"
 	"io"
 	"math"
@@ -41,8 +42,8 @@ func NewCrazySorter(filePath string, sa algorithms.SortingAlgorithm, ramsize flo
 	}
 }
 
-// PartsCounter ...
-func (crs *CrazySorter) PartsCounter() (int, int, error) {
+// partsCounter ...
+func (crs *CrazySorter) partsCounter() (int, int, error) {
 	file, err := os.Open(crs.FilePath)
 	if err != nil {
 		return 0, 0, err
@@ -60,8 +61,8 @@ func (crs *CrazySorter) PartsCounter() (int, int, error) {
 	return partsCount, int(math.Ceil(float64(fileSize / partsCount))), nil
 }
 
-// Divide ...
-func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
+// divide ...
+func (crs *CrazySorter) divide(partsCount, partSize int) (err error) {
 	file, err := os.Open(crs.FilePath)
 	defer file.Close()
 	if err != nil {
@@ -71,31 +72,16 @@ func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
 	reader := bufio.NewReader(file)
 	for partID := 0; partID < partsCount; partID++ {
 		partData := make([]int, 0, partSize)
-		for subPart := 0; subPart < SubPartsCount; subPart++ {
-			buffer := make([]byte, partSize/SubPartsCount)
-			n, err := io.ReadFull(reader, buffer)
-			if err != nil {
-				log.Warn(err)
-			}
+		for subPartID := 0; subPartID < SubPartsCount; subPartID++ {
 
-			appendix, _, err := reader.ReadLine()
-			if err != nil {
-				log.Warn(err)
-			}
-			buffer = append(buffer, appendix...)
-
-			log.Infof(
-				"%d bytes read at sub-part #%d (part #%d)",
-				n*(subPart+1),
-				subPart,
-				partID,
-			)
+			buffer := utils.SafeReadPart(subPartID, partID, partSize/SubPartsCount, reader)
 
 			for _, elem := range bytes.Split(buffer, NewLineDelim) {
 				value, _ := strconv.Atoi(string(elem))
 				partData = append(partData, value)
 			}
 		}
+
 		log.Infof("Sorting part #%d : %v ...", partID, partData[0:10])
 		partData = crs.SortAlgo.Sort(partData, func(a, b int) bool {
 			return a < b
@@ -127,9 +113,29 @@ func (crs *CrazySorter) Divide(partsCount, partSize int) (err error) {
 	return
 }
 
-// MergeParts ...
-func (crs *CrazySorter) MergeParts() error {
-	minExtractorHeap := datastructures.NewSexyHeap(func(a, b int) bool { return a < b })
+func (crs *CrazySorter) heapInitialFilling(tree *ds.SexyHeap, partsReaders []*bufio.Reader, subPartSize int) error {
+	for partID, partReader := range partsReaders {
+		buffer := utils.SafeReadPart(0, partID, subPartSize, partReader)
+		for _, elem := range bytes.Split(buffer, NewLineDelim) {
+			value, _ := strconv.Atoi(string(elem))
+			tree.Insert(
+				&ds.Pair{
+					Value:  value,
+					FileID: partID,
+				},
+			)
+		}
+	}
+	return nil
+}
+
+func (crs *CrazySorter) resultWriteQueueOrganizer(heap *ds.SexyHeap, fileWriter io.Writer, partsReaders []io.Reader) {
+
+}
+
+// mergeParts ...
+func (crs *CrazySorter) mergeParts() error {
+	minExtractorHeap := ds.NewSexyHeap(func(a, b *ds.Pair) bool { return a.Value < b.Value })
 	resultFile, err := os.Create(fmt.Sprintf("%s_sorted", crs.FilePath))
 	defer resultFile.Close()
 	if err != nil {
@@ -156,37 +162,23 @@ func (crs *CrazySorter) MergeParts() error {
 
 	subPartSize := int(crs.RAMSize) / len(crs.Parts) / SubPartsCount
 	log.Infof("Reading %d bytes per each part", subPartSize)
-	for idx, partReader := range partsReaders {
-		buffer := make([]byte, subPartSize)
-		n, err := partReader.Read(buffer)
-		if err != nil {
-			return err
-		}
-		log.Infof(
-			"%d bytes read from part #%d",
-			n,
-			idx,
-		)
+	crs.heapInitialFilling(&minExtractorHeap, partsReaders, subPartSize)
+	fmt.Println(minExtractorHeap.GetHead())
 
-		for _, elem := range bytes.Split(buffer, NewLineDelim) {
-			value, _ := strconv.Atoi(string(elem))
-			minExtractorHeap.Insert(value)
-		}
-	}
 	return nil
 }
 
 // StartARiot ...
 func (crs *CrazySorter) StartARiot() error {
-	partsCount, partSize, err := crs.PartsCounter()
+	partsCount, partSize, err := crs.partsCounter()
 	if err != nil {
 		return err
 	}
-	err = crs.Divide(partsCount, partSize)
+	err = crs.divide(partsCount, partSize)
 	if err != nil {
 		return err
 	}
 	log.Println(crs.Parts)
-	// crs.MergeParts()
+	crs.mergeParts()
 	return nil
 }

@@ -2,10 +2,16 @@ package datastructures
 
 // Heap ...
 type Heap interface {
-	Insert(...int)
+	Insert(...(*Pair))
 	Extract(int)
-	GetHead() int
+	GetHead() *Pair
 	siftUp(int)
 	siftDown(int)
 	String() string
+}
+
+// Pair ...
+type Pair struct {
+	Value  int
+	FileID int
 }
