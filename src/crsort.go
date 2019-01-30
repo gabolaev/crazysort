@@ -115,16 +115,14 @@ func (crs *CrazySorter) heapInitialFilling(
 	subPartSize int,
 ) {
 	for partID, partReader := range partsReaders {
-		buffer := utils.SafeReadPart(0, partID, subPartSize, partReader)
-		for _, elem := range bytes.Split(buffer, NewLineDelim) {
-			value, _ := strconv.Atoi(string(elem))
-			tree.Insert(
-				&ds.Pair{
-					Value:  value,
-					FileID: partID,
-				},
-			)
-		}
+		buffer := utils.ReadOneLine(partReader)
+		value, _ := strconv.Atoi(string(buffer))
+		tree.Insert(
+			&ds.Pair{
+				Value:  value,
+				FileID: partID,
+			},
+		)
 		buffer = nil
 	}
 }
@@ -185,7 +183,8 @@ func (crs *CrazySorter) mergeParts() error {
 	partsFiles := make([]*os.File, 0, len(crs.Parts))
 	partsReaders := make([]*bufio.Reader, 0, len(crs.Parts))
 	defer func() {
-		for _, file := range partsFiles {
+		for fileID, file := range partsFiles {
+			log.Infof("Closing file #%d", fileID)
 			file.Close()
 		}
 	}()
@@ -200,24 +199,33 @@ func (crs *CrazySorter) mergeParts() error {
 	}
 
 	subPartSize := int(crs.RAMSize) / len(crs.Parts) / SubPartsCount * 2
-	log.Infof("Reading %d bytes per each part", subPartSize)
+	log.Info("Running heap initial filling...")
 	crs.heapInitialFilling(minExtractorHeap, partsReaders, subPartSize)
+	log.Info("OK")
+	log.Info("Running final merge queue organizer...")
 	crs.resultWriteQueueOrganizer(minExtractorHeap, resultWriter, partsReaders)
+	log.Info("OK")
+	log.Info("Flushing writer")
 	resultWriter.Flush()
 	return nil
 }
 
 // StartARiot ...
 func (crs *CrazySorter) StartARiot() error {
+	log.Info("Running crazy sort")
 	partsCount, partSize, err := crs.partsCounter()
 	if err != nil {
 		return err
 	}
+	log.Warn("Fasten your seat belts, motherfuckers!!!")
 	err = crs.divide(partsCount, partSize)
 	if err != nil {
 		return err
 	}
-	log.Println(crs.Parts)
+	log.Info(crs.Parts)
+	log.Info("Running merge process")
 	crs.mergeParts()
+	log.Info("Done!")
+	log.Warn("Say hello to your mom!")
 	return nil
 }
