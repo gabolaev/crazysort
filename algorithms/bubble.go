@@ -5,7 +5,7 @@ type BubbleSorter struct {
 }
 
 // Sort ...
-func (bs BubbleSorter) Sort(slice []int, compare func(a, b int) bool) []int {
+func (bs BubbleSorter) Sort(slice []int, compare func(a, b int) bool) {
 	swapped := false
 	for !swapped {
 		swapped = true
@@ -16,5 +16,4 @@ func (bs BubbleSorter) Sort(slice []int, compare func(a, b int) bool) []int {
 			}
 		}
 	}
-	return slice
 }

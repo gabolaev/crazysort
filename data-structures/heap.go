@@ -13,8 +13,8 @@ type SexyHeap struct {
 }
 
 // NewSexyHeap ...
-func NewSexyHeap(Compare func(*Pair, *Pair) bool) SexyHeap {
-	return SexyHeap{
+func NewSexyHeap(Compare func(*Pair, *Pair) bool) *SexyHeap {
+	return &SexyHeap{
 		Data:    make([]*Pair, 0),
 		Size:    0,
 		Compare: Compare,

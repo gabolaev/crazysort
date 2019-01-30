@@ -13,10 +13,9 @@ type QuickSorter struct {
 }
 
 // Sort ...
-func (qs QuickSorter) Sort(slice []int, compare func(a, b int) bool) []int {
+func (qs QuickSorter) Sort(slice []int, compare func(a, b int) bool) {
 	qs.comparator = compare
 	qs.quickSort(slice, 0, len(slice)-1)
-	return slice
 }
 
 func (qs QuickSorter) quickSort(slice []int, from, to int) {

@@ -11,7 +11,7 @@ func main() {
 		FilePath: os.Args[1],
 		SortAlgo: algorithms.QuickSorter{},
 		Parts:    make([]string, 0),
-		RAMSize:  0.1,
+		RAMSize:  3,
 	}
 	err := crs.StartARiot()
 	if err != nil {

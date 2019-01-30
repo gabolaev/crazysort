@@ -15,11 +15,7 @@ func SafeReadPart(subPartID, partID, partSize int, reader *bufio.Reader) (buffer
 		log.Warn(err)
 	}
 
-	appendix, _, err := reader.ReadLine()
-	if err != nil {
-		log.Warn(err)
-	}
-	buffer = append(buffer, appendix...)
+	buffer = append(buffer, ReadOneLine(reader)...)
 
 	log.Infof(
 		"%d bytes read from part #%d",
@@ -27,4 +23,13 @@ func SafeReadPart(subPartID, partID, partSize int, reader *bufio.Reader) (buffer
 		partID,
 	)
 	return buffer
+}
+
+// ReadOneLine ...
+func ReadOneLine(reader *bufio.Reader) (result []byte) {
+	result, _, err := reader.ReadLine()
+	if err != nil {
+		log.Warn(err)
+	}
+	return
 }

@@ -22,9 +22,6 @@ var (
 	SubPartsCount = 5
 )
 
-// SortType describes sorting strategy
-type SortType int
-
 // CrazySorter ...
 type CrazySorter struct {
 	FilePath string
@@ -42,7 +39,6 @@ func NewCrazySorter(filePath string, sa algorithms.SortingAlgorithm, ramsize flo
 	}
 }
 
-// partsCounter ...
 func (crs *CrazySorter) partsCounter() (int, int, error) {
 	file, err := os.Open(crs.FilePath)
 	if err != nil {
@@ -61,7 +57,6 @@ func (crs *CrazySorter) partsCounter() (int, int, error) {
 	return partsCount, int(math.Ceil(float64(fileSize / partsCount))), nil
 }
 
-// divide ...
 func (crs *CrazySorter) divide(partsCount, partSize int) (err error) {
 	file, err := os.Open(crs.FilePath)
 	defer file.Close()
@@ -73,17 +68,17 @@ func (crs *CrazySorter) divide(partsCount, partSize int) (err error) {
 	for partID := 0; partID < partsCount; partID++ {
 		partData := make([]int, 0, partSize)
 		for subPartID := 0; subPartID < SubPartsCount; subPartID++ {
-
 			buffer := utils.SafeReadPart(subPartID, partID, partSize/SubPartsCount, reader)
-
 			for _, elem := range bytes.Split(buffer, NewLineDelim) {
 				value, _ := strconv.Atoi(string(elem))
 				partData = append(partData, value)
 			}
+			// forcing garbage collection
+			buffer = nil
 		}
 
 		log.Infof("Sorting part #%d : %v ...", partID, partData[0:10])
-		partData = crs.SortAlgo.Sort(partData, func(a, b int) bool {
+		crs.SortAlgo.Sort(partData, func(a, b int) bool {
 			return a < b
 		})
 		log.Infof("Sorted: %v ...", partData[0:30])
@@ -106,6 +101,7 @@ func (crs *CrazySorter) divide(partsCount, partSize int) (err error) {
 				log.Println(err)
 			}
 		}
+		partData = nil
 		writer.Flush()
 		partFile.Close()
 		crs.Parts = append(crs.Parts, partFileName)
@@ -113,7 +109,11 @@ func (crs *CrazySorter) divide(partsCount, partSize int) (err error) {
 	return
 }
 
-func (crs *CrazySorter) heapInitialFilling(tree *ds.SexyHeap, partsReaders []*bufio.Reader, subPartSize int) error {
+func (crs *CrazySorter) heapInitialFilling(
+	tree *ds.SexyHeap,
+	partsReaders []*bufio.Reader,
+	subPartSize int,
+) {
 	for partID, partReader := range partsReaders {
 		buffer := utils.SafeReadPart(0, partID, subPartSize, partReader)
 		for _, elem := range bytes.Split(buffer, NewLineDelim) {
@@ -125,23 +125,62 @@ func (crs *CrazySorter) heapInitialFilling(tree *ds.SexyHeap, partsReaders []*bu
 				},
 			)
 		}
+		buffer = nil
 	}
-	return nil
 }
 
-func (crs *CrazySorter) resultWriteQueueOrganizer(heap *ds.SexyHeap, fileWriter io.Writer, partsReaders []io.Reader) {
+func (crs *CrazySorter) resultWriteQueueOrganizer(
+	heap *ds.SexyHeap,
+	fileWriter *bufio.Writer,
+	partsReaders []*bufio.Reader,
+) {
+	closedFiles := make(map[int]bool)
+	for heap.Size > 0 {
+		headValue, err := heap.GetHead()
+		if err != nil {
+			log.Error(err)
+		}
 
+		fileWriter.WriteString(fmt.Sprintf("%d\n", headValue.Value))
+		fileWriter.Flush()
+		// because we don't
+		// need data |  ||
+		//           || |_
+
+		if !closedFiles[headValue.FileID] {
+			newValueStr, _, err := partsReaders[headValue.FileID].ReadLine()
+			switch err {
+			case nil:
+				break
+			case io.EOF, io.ErrUnexpectedEOF:
+				log.Infof("END OF FILE #%d REACHED", headValue.FileID)
+				closedFiles[headValue.FileID] = true
+				continue
+			}
+			newValue, err := strconv.Atoi(string(newValueStr))
+			if err != nil {
+				log.Error(err)
+			}
+			heap.Insert(
+				&ds.Pair{
+					Value:  newValue,
+					FileID: headValue.FileID,
+				},
+			)
+		}
+	}
 }
 
-// mergeParts ...
 func (crs *CrazySorter) mergeParts() error {
-	minExtractorHeap := ds.NewSexyHeap(func(a, b *ds.Pair) bool { return a.Value < b.Value })
+	minExtractorHeap := ds.NewSexyHeap(func(a, b *ds.Pair) bool {
+		return a.Value < b.Value
+	})
 	resultFile, err := os.Create(fmt.Sprintf("%s_sorted", crs.FilePath))
 	defer resultFile.Close()
 	if err != nil {
 		return err
 	}
-	// resultWriter := bufio.NewWriter(resultFile)
+	resultWriter := bufio.NewWriter(resultFile)
 
 	partsFiles := make([]*os.File, 0, len(crs.Parts))
 	partsReaders := make([]*bufio.Reader, 0, len(crs.Parts))
@@ -160,11 +199,11 @@ func (crs *CrazySorter) mergeParts() error {
 		partsReaders = append(partsReaders, bufio.NewReader(part))
 	}
 
-	subPartSize := int(crs.RAMSize) / len(crs.Parts) / SubPartsCount
+	subPartSize := int(crs.RAMSize) / len(crs.Parts) / SubPartsCount * 2
 	log.Infof("Reading %d bytes per each part", subPartSize)
-	crs.heapInitialFilling(&minExtractorHeap, partsReaders, subPartSize)
-	fmt.Println(minExtractorHeap.GetHead())
-
+	crs.heapInitialFilling(minExtractorHeap, partsReaders, subPartSize)
+	crs.resultWriteQueueOrganizer(minExtractorHeap, resultWriter, partsReaders)
+	resultWriter.Flush()
 	return nil
 }
 
